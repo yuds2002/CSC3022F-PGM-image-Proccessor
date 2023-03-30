@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <utility>
 #include "ConnectedComponent.h"
 
 namespace srkyud001{
@@ -10,11 +11,12 @@ namespace srkyud001{
     class PGMimageProcessor
     {
     private:
-        /* data */
+        std::string filename;
     public:
-        PGMimageProcessor(/* args */);
+        PGMimageProcessor(std::string);
         ~PGMimageProcessor();
 
+       
         //big 6
 
         int extractComponents(unsigned char threshold, int minValidSize);
@@ -23,8 +25,10 @@ namespace srkyud001{
         int getLargestSize(void) const;
         int getSmallestSize(void) const;
         void printComponentData(const ConnectedComponent & theComponent) const;
+        
     };
 
+    
     
 }
 

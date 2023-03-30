@@ -7,13 +7,20 @@ namespace srkyud001{
     class ConnectedComponent
     {
     private:
-        int num_pixels;
-        int comp;
-        std::vector< std::pair<int,int> > coord;
+        
     public:
-        ConnectedComponent(/* args */);
-        ~ConnectedComponent();
+        int num_pixels;
+        int comp=-1;
+        std::vector< std::pair<int,int> > coord;
+        ConnectedComponent(){
+            ++comp;
+        }
+        ~ConnectedComponent(){
+            //std::cout<<comp<<std::endl;
+            //std::cout<<"cc destructor"<<std::endl;
+        }
     };
+    
 
     
 }
