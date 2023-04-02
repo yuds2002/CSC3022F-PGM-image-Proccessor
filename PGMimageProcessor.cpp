@@ -5,312 +5,246 @@
 #include <iostream>
 #include <fstream>
 #include <algorithm>
+#include <queue>
 #include "PGMimageProcessor.h"
-namespace srkyud001{
+namespace srkyud001
+{
 
-PGMimageProcessor::PGMimageProcessor(std::string filename){
-    this->filename = filename;
-    
-}
-unsigned char **image;
-int numrows=0;
-int numcols=0;
-
-
-int PGMimageProcessor::extractComponents(unsigned char threshold, int minValidSize){
-
-    std::stringstream ss;
-    std::ifstream file(filename, std::ios::binary);
-    std::string inputLine = "";
-
-    // First line : version
-    getline(file, inputLine);
-    if (inputLine.compare("P5") != 0)
-        std::cerr << "Version error" << std::endl;
-    else
-        std::cout << "Version : " << inputLine << std::endl;
-
-    // Second line : comment
-    getline(file, inputLine);
-    while (inputLine.substr(0, 1) == "#")
+    PGMimageProcessor::PGMimageProcessor(std::string filename)
     {
-        
-        std::cout << inputLine.substr(0, 1) << std::endl;
+        this->filename = filename;
+    }
+    unsigned char **image;
+    int numrows = 0;
+    int numcols = 0;
+
+    bool PGMimageProcessor::found(std::vector<std::pair<int, int>> vect, std::pair<int, int> key)
+    {
+        auto it = std::find(vect.begin(), vect.end(), key);
+        if (it != vect.end())
+        {
+            return true;
+        }
+        return false;
+    }
+
+    int PGMimageProcessor::extractComponents(unsigned char threshold, int minValidSize)
+    {
+
+        int range = 0;
+
+        std::stringstream ss;
+        std::ifstream file(filename, std::ios::binary);
+        std::string inputLine = "";
+
         getline(file, inputLine);
-    }
-   
-    int range=0;
+        if (inputLine.compare("P5") != 0)
+            std::cerr << "Version error" << std::endl;
+        else
+            std::cout << "Version : " << inputLine << std::endl;
 
-    ss << inputLine + "\n";
-    getline(file, inputLine);
-    ss << inputLine +"\n";
-    ss << file.rdbuf();
-    ss >> numcols >> numrows;
-    std::cout << numcols << " columns and " << numrows << " rows" << std::endl;
-    ss >> range;
-    std::cout<<"range = "<<range<<std::endl;
-    image = new unsigned char *[numrows];
-   
-    for (int row = 0; row < numrows; row++)
-    {
-        image[row] = new unsigned char[numcols];
-        for (int col = 0; col < numcols; col++)
+        // Second line : comment
+        getline(file, inputLine);
+        while (inputLine.substr(0, 1) == "#")
         {
-            
-            //std::string s;
-            //ss >>s;
-
-            unsigned char p = (unsigned char)(ss.get());
-
-            
-           // std::cout<< s <<" ";
-            
-            //int p = std::stoi(s);
-
-
-            if(p<threshold){
-                p = 0;
-            }else{
-                p =255;
-            }
-
-           
-           
-            image[row][col] = p;
+            // std::cout << inputLine.substr(0, 1) << std::endl;
+            getline(file, inputLine);
         }
-    }
-
-    int count=0;
-
-    for (int i = 0; i < numrows; i++)
-    {
-        for (int j = 0; j < numcols; j++)
+        ss << inputLine + "\n";
+        ss << file.rdbuf();
+        ss >> numcols >> numrows;
+        std::cout << numcols << " columns and " << numrows << " rows" << std::endl;
+        ss >> range;
+        std::cout << range << " = range" << std::endl;
+        image = new unsigned char *[numrows];
+        unsigned char c;
+        for (int row = 0; row < numrows; row++)
         {
-            if(image[i][j]==255){
-                count++;
+            image[row] = new unsigned char[numcols];
+            for (int col = 0; col < numcols; col++)
+            {
+                unsigned char c = (unsigned char)(ss.get());
+
+                if (c > threshold)
+                {
+                    c = 255;
+                }
+                else
+                {
+                    c = 0;
+                }
+
+                image[row][col] = c;
             }
         }
-        
-    }
 
-    
-    //std::cout<<int(threshold)<<std::endl;
-    ss.clear();
-    file.close();
+        int count0 = 0;
+        int count255 = 0;
 
-    std::FILE *pgmimg;
-    pgmimg = fopen("test.pgm", "wb");
-
-    // Writing Magic Number to the File
-    fprintf(pgmimg, "P5\n");
-
-    //comment
-    fprintf(pgmimg, "#made by srkyud001\n");
-    // Writing Width and Height
-    fprintf(pgmimg, "%d %d\n", numcols, numrows);
-
-    // Writing the maximum gray value
-    fprintf(pgmimg, "255\n");
-
-    for (int i = 0; i < numrows; i++)
-    {
-        
-        for (int j = 0; j <numcols; j++)
+        for (int i = 0; i < numrows; i++)
         {
-            unsigned char temp = image[i][j];
-           
-
-            //  Writing the gray values in the 2D array to the file
-            fprintf(pgmimg, "%d ", temp);
+            for (int j = 0; j < numcols; j++)
+            {
+                if (image[i][j] == 0)
+                {
+                    ++count0;
+                }
+                else
+                {
+                    ++count255;
+                }
+            }
         }
-        fprintf(pgmimg, "\n");
-    }
 
-    fclose(pgmimg);
+        // std::cout<<int(threshold)<<std::endl;
+        ss.clear();
+        file.close();
 
-    //////////////////////////////////////floodfill start
-    
+        //////////////////////////////////////bfs start
 
-    std::vector<std::pair<int,int>> equal;
+        std::vector<std::pair<int, int>> seen;
+        std::queue<std::pair<int, int>> q;
 
-    int label=0;
-   
-    for (int row = 0; row < numrows; row++)
-    {
-        for (int col = 0; col < numcols; col++)
+        int label = 1;
+
+        for (int row = 0; row < numrows; row++)
         {
-            
-            if(image[row][col] == 255){
+            for (int col = 0; col < numcols; col++)
+            {
 
+                if (image[row][col] == 255)
+                {
+                    q.push(std::make_pair(row, col));
+                    seen.push_back(std::make_pair(row, col));
 
-                if(row==0 && col ==0){
-                    //ConnectedComponent cc;
-                    //cc.coord.push_back(std::make_pair(row,col));
-                    //components.push_back(cc);
+                    while (!q.empty())
+                    {
+
+                        auto current = q.front();
+                        q.pop();
+
+                        int i = current.first, j = current.second;
+                        // std::cout << q.size();
+                        // std::cout << i << " -- " << j << std::endl;
+                        image[i][j] = label;
+                        if (i >= 1)
+                        {
+                            if (image[i - 1][j] == 255 && !found(seen, std::make_pair(i - 1, j)))
+                            {
+                                // std::cout << "up" << std::endl;
+
+                                seen.push_back(std::make_pair(i - 1, j));
+                                q.push(std::make_pair(i - 1, j));
+                            }
+                        }
+
+                        if (j >= 1)
+                        {
+                            if (image[i][j - 1] == 255 && !found(seen, std::make_pair(i, j - 1)))
+                            {
+                                // std::cout << "left" << std::endl;
+                                seen.push_back(std::make_pair(i, j - 1));
+                                q.push(std::make_pair(i, j - 1));
+                            }
+                        }
+
+                        if (i < numrows)
+                        {
+                            if (image[i + 1][j] == 255 && !found(seen, std::make_pair(i + 1, j)))
+                            {
+                                // std::cout << "down" << std::endl;
+
+                                seen.push_back(std::make_pair(i + 1, j));
+                                q.push(std::make_pair(i + 1, j));
+                            }
+                        }
+
+                        if (j < numcols)
+                        {
+                            if (image[i][j + 1] == 255 && !found(seen, std::make_pair(i, j + 1)))
+                            {
+                                // std::cout << "right" << std::endl;
+
+                                seen.push_back(std::make_pair(i, j + 1));
+                                q.push(std::make_pair(i, j + 1));
+                            }
+                        }
+                    }
+                    std::cout << label << std::endl;
                     label++;
                 }
-                //if up and left == 0 create connected component
-                if(row-1>=0 && col-1>=0){
-                    
-                    if (image[row-1][col]==0 && image[row][col-1]==0)
-                    {
-                        //ConnectedComponent cc;
-                        //cc.coord.push_back(std::make_pair(row,col));
-                        //components.push_back(cc);
-
-                        label++;
-                        image[row][col] = label;
-                        
-                    }else{
-                        if(image[row-1][col]==0){
-                            image[row][col] = image[row][col-1];
-                        }else if (image[row][col-1]==0){
-                            image[row][col] = image[row-1][col];
-                        }else{
-                            int min = std::min(image[row][col-1],image[row-1][col]);
-                            int max  = std::max(image[row][col-1],image[row-1][col]);
-                            equal.push_back(std::make_pair(min,max));
-                            image[row][col] = min;
-                        }
-                        
-                        //components.back().coord.push_back(std::make_pair(row,col));
-                    }
-                // if there is only up and it == 0 create connected component
-                }else if(row-1>=0){
-                    if (image[row-1][col]==0)
-                    {
-                        //ConnectedComponent cc;
-                        //cc.coord.push_back(std::make_pair(row,col));
-                        //components.push_back(cc);
-
-                        label++;
-                        image[row][col] = label;
-
-
-                    }else{
-                        image[row][col] = image[row-1][col];
-                        
-                        //components.back().coord.push_back(std::make_pair(row,col));
-                    }
-
-                // if there is only left and it == 0 create connected component
-                }else{
-                    if(image[row][col-1]==0){
-                        //ConnectedComponent cc;
-                        //cc.coord.push_back(std::make_pair(row,col));
-                        //components.push_back(cc);
-
-                        label++;
-                        image[row][col] = label;
-
-                    }else{
-                        image[row][col] = image[row][col-1];
-
-                        //components.back().coord.push_back(std::make_pair(row,col));
-                    }
-
-
-                }
-
             }
-            
         }
-       
-    }
-    
-    //////////////////////////////////////floodfill end
-//
 
-    std::cout<< count << " = '255' pixels"<< std::endl;
+        //////////////////////////////////////bfs end
+        //
+        std::vector<ConnectedComponent> components;
 
-    std::vector<std::pair<int,int>> eql;
-    std::vector<int> firsts;
-    
-    for (int i = 0; i < equal.size(); i++)
-    {
-        //std::cout<<equal[i].first << " - " << equal[i].second<<std::endl;
-        if(equal[i].first != equal[i].second){
-            eql.push_back(equal[i]);
-            firsts.push_back(equal[i].first);
-            //std::cout<<equal[i].first << " - " << equal[i].second<<std::endl;
-        }
-        
-    }
-
-    std::vector<int>::iterator num_comp =  std::max_element(firsts.begin(), firsts.end());
-    std::cout<<*num_comp<< " components"<<std::endl;
-    
-    std::vector<ConnectedComponent> components;
-    std::vector<int> seen;
-
-    std::cout<<std::endl;
-
-    for (int r = 0; r < numrows; r++)
-    {
-        for (int c = 0; c < numcols; c++)
+        for (int i = 0; i <= label; i++)
         {
-            for (int e = 0; e < eql.size(); e++)
-            {
-                if(image[r][c] == eql[e].second){
-                    //std::cout<<eql[e].second<<" becomes " <<eql[e].first <<std::endl;
-                    image[r][c] = eql[e].first;
-                    break;
-                }
-                
-            }
-           // std::cout<<image[r][c] << " ";
+            ConnectedComponent cc;
+            components.push_back(cc);
         }
-        //std::cout<<std::endl;
-        
-    }
 
-    
-    for (int i = 1; i <= *num_comp; i++)
-    {
-        ConnectedComponent cc;
-        
         for (int r = 0; r < numrows; r++)
         {
             for (int c = 0; c < numcols; c++)
             {
-                if(image[r][c] == i){
-                    cc.coord.push_back(std::make_pair(r,c));
+                int pos = image[r][c];
+                if (pos != 0)
+                {
+                    components[pos - 1].coord.push_back(std::make_pair(r, c));
                 }
             }
-            
         }
-        if (cc.coord.size()>0)
+
+        for (int i = 0; i < components.size(); i++)
         {
-           components.push_back(cc);
+            std::cout << components[i].coord.size() << std::endl;
         }
-        
-    }
-    
 
-    for (int c = 0; c < components.size(); c++)
+        std::FILE *pgmimg;
+        std::stringstream n;
+
+        pgmimg = fopen("test.pgm", "wb");
+
+        // Writing Magic Number to the File
+        fprintf(pgmimg, "P2\n");
+
+        // Writing Width and Height
+        fprintf(pgmimg, "%d %d\n", numcols, numrows);
+
+        // Writing the maximum gray value
+        fprintf(pgmimg, "255\n");
+
+        for (int i = 0; i < numrows; i++)
+        {
+
+            for (int j = 0; j < numcols; j++)
+            {
+
+                int temp = image[i][j];
+
+                fprintf(pgmimg, "%d ", temp);
+            }
+            fprintf(pgmimg, "\n");
+        }
+
+        fclose(pgmimg);
+
+        // std::cout << components.size() << std::endl;
+        return 0;
+    }
+
+    PGMimageProcessor::~PGMimageProcessor()
     {
-        std::cout<<components[c].coord.size()<<std::endl;
+        for (int i = 0; i < numrows; i++)
+        {
+            delete[] image[i];
+        }
+        delete[] image;
+
+        std::cout << "pgm destructor" << std::endl;
     }
-    
-    
-
-    return 0;
-    
-}
-
-
-
-
-
-PGMimageProcessor::~PGMimageProcessor(){
-    for (int i = 0; i < numrows; i++)
-    {
-        delete[] image[i];
-    }
-    delete[] image;
-
-    std::cout<<"pgm destructor"<<std::endl;
-}
-
 
 }
